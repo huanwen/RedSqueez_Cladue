@@ -2,7 +2,7 @@
 //  NodeView.swift
 //  LinkedListApp
 //
-//  简化的链条节点视图 - 添加长按删除功能
+//  简化的链条节点视图 - Scratch风格内嵌编辑
 //
 
 import SwiftUI
@@ -13,10 +13,13 @@ struct ChainNodeView: View {
     @State private var dragOffset = CGSize.zero
     @State private var isChainHead = false
     @State private var isDragging = false
-
     @State private var nodeIndex: Int = -1
     @State private var showingDeleteButton = false
     @State private var longPressTimer: Timer?
+    @State private var showingBlockSelector = false
+    @State private var showingDropdown = false
+    @State private var isEditingText = false
+    @State private var tempTextInput = ""
     
     // 连接逻辑处理器
     private let connectionLogic = ConnectionLogic()
@@ -29,14 +32,14 @@ struct ChainNodeView: View {
                 hasBottomTab: true,
                 topSlotHighlight: hasIncomingConnection(),
                 bottomTabHighlight: node.next != nil,
-                color: getNodeColor(),
+                color: node.blockConfig.color.opacity(0.8),
                 strokeColor: getStrokeColor(),
                 strokeWidth: getStrokeWidth()
             )
-            .frame(width: 120, height: 66)
+            .frame(width: getBlockWidth(), height: 80)
             
-            // 节点信息显示
-            VStack(spacing: 2) {
+            // 节点内容 - Scratch风格的内嵌控件
+            HStack(spacing: 6) {
                 if nodeIndex >= 0 {
                     Text("[\(nodeIndex)]")
                         .font(.caption2)
@@ -44,11 +47,28 @@ struct ChainNodeView: View {
                         .bold()
                 }
                 
-                Text("ID: \(node.shortUUID)")
-                    .font(.caption2)
+                // 模块名称
+                Text(node.blockConfig.name)
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.white)
-                    .opacity(0.9)
+                
+                // 根据输入类型显示不同的控件
+                switch node.blockConfig.inputType {
+                case .dropdown(let options):
+                    createDropdownView(options: options)
+                    
+                case .textField(let placeholder):
+                    createTextFieldView(placeholder: placeholder)
+                    
+                case .both(let options, let placeholder):
+                    createDropdownView(options: options)
+                    createTextFieldView(placeholder: placeholder)
+                    
+                case .none:
+                    EmptyView()
+                }
             }
+            .frame(width: getBlockWidth() - 10)
             
             // 删除按钮 - 长按时显示
             if showingDeleteButton {
@@ -68,7 +88,7 @@ struct ChainNodeView: View {
                     }
                     Spacer()
                 }
-                .frame(width: 120, height: 66)
+                .frame(width: getBlockWidth(), height: 80)
             }
         }
         .position(CGPoint(x: node.position.x + dragOffset.width,
@@ -87,12 +107,15 @@ struct ChainNodeView: View {
             if showingDeleteButton {
                 hideDeleteButton()
             }
+            // Scratch风格不需要跳转页面编辑
         }
         .onLongPressGesture(minimumDuration: 0.6) {
             // 长按显示删除按钮
             showDeleteButton()
         }
-
+        .sheet(isPresented: $showingBlockSelector) {
+            BlockSelectorView(selectedConfig: $node.blockConfig)
+        }
         .gesture(
             DragGesture()
                 .onChanged { value in
@@ -119,6 +142,90 @@ struct ChainNodeView: View {
                     updateNodeInfo()
                 }
         )
+    }
+    
+    // MARK: - Scratch风格内嵌控件创建方法
+    @ViewBuilder
+    private func createDropdownView(options: [String]) -> some View {
+        Menu {
+            ForEach(options, id: \.self) { option in
+                Button(option) {
+                    node.blockData.selectedDropdown = option
+                }
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Text(node.blockData.selectedDropdown ?? options.first ?? "选择")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.black)
+            }
+            .background(Color.white)
+            .cornerRadius(8)
+        }
+    }
+    
+    @ViewBuilder
+    private func createTextFieldView(placeholder: String) -> some View {
+        HStack(spacing: 2) {
+            if isEditingText {
+                TextField("", text: $tempTextInput, onCommit: {
+                    node.blockData.textInput = tempTextInput
+                    isEditingText = false
+                })
+                .font(.system(size: 11, weight: .medium))
+                .textFieldStyle(PlainTextFieldStyle())
+                .foregroundColor(.black)
+                .background(Color.white)
+                .cornerRadius(6)
+                .frame(width: 40, height: 20)
+                .onAppear {
+                    tempTextInput = node.blockData.textInput
+                }
+            } else {
+                Button(action: {
+                    tempTextInput = node.blockData.textInput
+                    isEditingText = true
+                }) {
+                    Text(node.blockData.textInput.isEmpty ? placeholder : node.blockData.textInput)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.white)
+                        .cornerRadius(8)
+                }
+            }
+        }
+    }
+    
+    // 根据内容动态计算模块宽度
+    private func getBlockWidth() -> CGFloat {
+        let baseName = node.blockConfig.name
+        let baseWidth: CGFloat = 60 + CGFloat(baseName.count * 8)
+        
+        switch node.blockConfig.inputType {
+        case .dropdown(let options):
+            let maxOption = options.max(by: { $0.count < $1.count }) ?? ""
+            return baseWidth + CGFloat(maxOption.count * 6) + 40
+            
+        case .textField(let placeholder):
+            let maxText = max(node.blockData.textInput.count, placeholder.count)
+            return baseWidth + CGFloat(maxText * 6) + 40
+            
+        case .both(let options, let placeholder):
+            let maxOption = options.max(by: { $0.count < $1.count }) ?? ""
+            let maxText = max(node.blockData.textInput.count, placeholder.count)
+            return baseWidth + CGFloat(maxOption.count * 6) + CGFloat(maxText * 6) + 60
+            
+        case .none:
+            return baseWidth
+        }
     }
     
     // MARK: - 删除按钮相关方法
@@ -230,16 +337,6 @@ struct ChainNodeView: View {
     }
     
     // MARK: - 视觉样式
-    private func getNodeColor() -> Color {
-        if isChainHead && hasConnections() {
-            return Color.blue.opacity(0.7)
-        } else if hasConnections() {
-            return Color.green.opacity(0.7)
-        } else {
-            return Color.gray.opacity(0.6)
-        }
-    }
-    
     private func getStrokeColor() -> Color {
         return hasConnections() ? Color.black : Color.gray
     }

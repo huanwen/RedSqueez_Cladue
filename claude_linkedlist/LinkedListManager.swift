@@ -2,7 +2,7 @@
 //  LinkedListManager.swift
 //  LinkedListApp
 //
-//  链条管理器 - 处理链条连接和拖拽逻辑
+//  链条管理器 - 处理模块化链条连接和拖拽逻辑
 //
 
 import SwiftUI
@@ -11,13 +11,15 @@ import SwiftUI
 class ChainManager: ObservableObject {
     @Published var nodes: [ChainNode] = []
     @Published var chains: [[ChainNode]] = [] // 存储多个独立的链条
+    @Published var defaultConfig: BlockConfig = BlockConfig.availableBlocks[0]
     
     private let snapDistance: CGFloat = 25.0
     private let nodeSpacing: CGFloat = 50.0 // 垂直间距
     
-    // 添加新节点
-    func addNode(at position: CGPoint) {
-        let newNode = ChainNode(position: position)
+    // 添加新节点 - 使用当前选中的配置
+    func addNode(at position: CGPoint, config: BlockConfig? = nil) {
+        let selectedConfig = config ?? defaultConfig
+        let newNode = ChainNode(position: position, config: selectedConfig)
         nodes.append(newNode)
     }
     
