@@ -24,8 +24,8 @@ struct ContentView: View {
                     )
                     .ignoresSafeArea()
                     .onTapGesture { location in
-                        // 点击空白处创建默认节点
-                        manager.addNode(at: location)
+                        // 点击空白处不再创建模块，只是取消选择
+                        // 模块创建改为直接点击底部工具栏
                     }
                     
                     // 绘制链条节点
@@ -46,14 +46,9 @@ struct ContentView: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(.gray)
                                 
-                                Text("从底部工具栏选择模块")
+                                Text("点击下方模块直接创建")
                                     .font(.headline)
                                     .foregroundColor(.gray)
-                                
-                                Text("然后点击画布创建模块")
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                                    .multilineTextAlignment(.center)
                                 
                                 VStack(spacing: 4) {
                                     Text("操作说明:")
@@ -133,21 +128,18 @@ struct ContentView: View {
 // MARK: - 底部模块选择工具栏
 struct BottomModuleToolbar: View {
     @ObservedObject var manager: ChainManager
-    @State private var selectedConfig: BlockConfig = BlockConfig.availableBlocks[0]
-    @State private var isDragMode = false
-    @GestureState private var dragOffset = CGSize.zero
     
     var body: some View {
         VStack(spacing: 0) {
             // 工具栏指示器
             HStack {
-                Text("选择模块:")
+                Text("点击模块直接创建:")
                     .font(.caption)
                     .foregroundColor(.gray)
                 
                 Spacer()
                 
-                Text("点击画布创建 \(selectedConfig.name)")
+                Text("总计 \(manager.nodes.count) 个模块")
                     .font(.caption)
                     .foregroundColor(.blue)
                     .bold()
@@ -161,11 +153,9 @@ struct BottomModuleToolbar: View {
                     ForEach(BlockConfig.availableBlocks, id: \.name) { config in
                         ModuleToolbarItem(
                             config: config,
-                            isSelected: selectedConfig.name == config.name,
                             onTap: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    selectedConfig = config
-                                }
+                                // 直接创建模块，放在屏幕中央附近的随机位置
+                                createModuleAtRandomPosition(config: config)
                             }
                         )
                     }
@@ -182,24 +172,46 @@ struct BottomModuleToolbar: View {
             )
         }
         .background(Color.white.opacity(0.95))
-        .onChange(of: selectedConfig) { newConfig in
-            // 更新管理器中的默认配置
-            manager.defaultConfig = newConfig
-        }
-        .onAppear {
-            manager.defaultConfig = selectedConfig
-        }
+    }
+    
+    private func createModuleAtRandomPosition(config: BlockConfig) {
+        // 在屏幕中央区域生成随机位置
+        let centerX = UIScreen.main.bounds.width / 2
+        let centerY = UIScreen.main.bounds.height / 2 - 100 // 减去底部工具栏高度
+        
+        // 添加一些随机偏移，避免模块重叠
+        let randomOffsetX = CGFloat.random(in: -50...50)
+        let randomOffsetY = CGFloat.random(in: -100...100)
+        
+        let position = CGPoint(
+            x: centerX + randomOffsetX,
+            y: centerY + randomOffsetY
+        )
+        
+        manager.addNode(at: position, config: config)
     }
 }
 
 // MARK: - 模块工具栏项
 struct ModuleToolbarItem: View {
     let config: BlockConfig
-    let isSelected: Bool
     let onTap: () -> Void
+    @State private var isPressed = false
     
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = true
+            }
+            onTap()
+            
+            // 短暂的按压反馈
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    isPressed = false
+                }
+            }
+        }) {
             VStack(spacing: 4) {
                 // 模块预览
                 RoundedRectangle(cornerRadius: 8)
@@ -212,14 +224,14 @@ struct ModuleToolbarItem: View {
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                     )
-                    .scaleEffect(isSelected ? 1.1 : 1.0)
-                    .shadow(color: isSelected ? config.color.opacity(0.5) : .clear, radius: 4)
+                    .scaleEffect(isPressed ? 0.95 : 1.0)
+                    .shadow(color: config.color.opacity(0.3), radius: isPressed ? 2 : 4)
                 
                 // 模块名称
                 Text(config.name)
                     .font(.caption2)
-                    .foregroundColor(isSelected ? .blue : .gray)
-                    .bold(isSelected)
+                    .foregroundColor(.primary)
+                    .bold()
                 
                 // 参数类型指示
                 Text(getParameterHint(config.inputType))
@@ -229,7 +241,7 @@ struct ModuleToolbarItem: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .animation(.easeInOut(duration: 0.1), value: isPressed)
     }
     
     private func getParameterHint(_ inputType: InputType) -> String {
