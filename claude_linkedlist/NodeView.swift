@@ -91,8 +91,7 @@ struct ChainNodeView: View {
                 .frame(width: getBlockWidth(), height: 80)
             }
         }
-        .position(CGPoint(x: node.position.x + dragOffset.width,
-                         y: node.position.y + dragOffset.height))
+        .position(node.position)
         .onAppear {
             updateNodeInfo()
         }
@@ -120,22 +119,55 @@ struct ChainNodeView: View {
             DragGesture()
                 .onChanged { value in
                     isDragging = true
-                    dragOffset = value.translation
                     
                     // 拖拽时隐藏删除按钮
                     if showingDeleteButton {
                         hideDeleteButton()
                     }
+                    
+                    if isChainHead && hasConnections() {
+                        // 链头拖拽 - 整条链条一起移动
+                        moveWholeChainDuringDrag(offset: value.translation)
+                    } else {
+                        // 中间模块拖拽 - 先断开，然后整体移动子链条
+                        if dragOffset == .zero {
+                            // 第一次拖拽时断开
+                            breakFromPreviousNode()
+                        }
+                        // 移动当前节点及其子链条作为整体
+                        moveSubChainDuringDrag(offset: value.translation)
+                    }
+                    
+                    dragOffset = value.translation
                 }
                 .onEnded { value in
                     isDragging = false
                     
-                    if isChainHead && hasConnections() {
-                        // 链条头部拖拽
-                        moveWholeChain(offset: value.translation)
+                    // 重新整理链条排列
+                    rearrangeCurrentChain()
+                    
+                    // 检查连接 - 根据节点状态选择合适的连接方法
+                    let currentIsChainHead = !hasIncomingConnection()
+                    let currentHasNext = node.next != nil
+                    
+                    if currentIsChainHead && currentHasNext {
+                        // 拖拽的是链条头部 - 使用链条间连接检测
+                        connectionLogic.checkChainToChainConnection(
+                            for: node,
+                            manager: manager,
+                            isChainHead: true
+                        ) {
+                            updateNodeInfo()
+                        }
                     } else {
-                        // 非头部节点拖拽
-                        breakAndMoveSubChain(offset: value.translation)
+                        // 拖拽的是单个节点或断开的子链条 - 使用自动连接检测
+                        connectionLogic.checkAutoConnect(
+                            for: node,
+                            manager: manager,
+                            hasIncomingConnection: hasIncomingConnection()
+                        ) {
+                            updateNodeInfo()
+                        }
                     }
                     
                     dragOffset = .zero
@@ -331,7 +363,7 @@ struct ChainNodeView: View {
                     y: head.position.y + yOffset
                 )
             }
-            yOffset += 60
+            yOffset += 80
             current = currentNode.next
         }
     }
@@ -354,26 +386,63 @@ struct ChainNodeView: View {
     }
     
     // MARK: - 拖拽和移动
-    private func moveWholeChain(offset: CGSize) {
-        guard isChainHead && hasConnections() else {
-            breakAndMoveSubChain(offset: offset)
-            return
-        }
+    private func moveWholeChainDuringDrag(offset: CGSize) {
+        // 链头拖拽时，整条链条实时移动
+        let deltaX = offset.width - dragOffset.width
+        let deltaY = offset.height - dragOffset.height
         
-        // 移动头部节点
+        var current: ChainNode? = node
+        while let currentNode = current {
+            currentNode.position.x += deltaX
+            currentNode.position.y += deltaY
+            current = currentNode.next
+        }
+    }
+    
+    private func moveSubChainDuringDrag(offset: CGSize) {
+        // 中间模块拖拽时，子链条整体实时移动
+        let deltaX = offset.width - dragOffset.width
+        let deltaY = offset.height - dragOffset.height
+        
+        var current: ChainNode? = node
+        while let currentNode = current {
+            currentNode.position.x += deltaX
+            currentNode.position.y += deltaY
+            current = currentNode.next
+        }
+    }
+    
+    private func rearrangeCurrentChain() {
+        // 拖拽结束后重新整理链条为垂直排列
+        var current: ChainNode? = node
+        var yOffset: CGFloat = 0
+        
+        while let currentNode = current {
+            withAnimation(.easeOut(duration: 0.2)) {
+                currentNode.position = CGPoint(
+                    x: node.position.x,
+                    y: node.position.y + yOffset
+                )
+            }
+            yOffset += 80
+            current = currentNode.next
+        }
+    }
+    private func moveWholeChain(offset: CGSize) {
+        // 链头拖拽 - 移动整条链条
         node.position.x += offset.width
         node.position.y += offset.height
         
-        // 重新排列整条链
+        // 重新排列整条链条，保持垂直排列
         var current = node.next
-        var yOffset: CGFloat = 60
+        var yOffset: CGFloat = 80 // 模块间的垂直间距
         
         while let currentNode = current {
             withAnimation(.easeOut(duration: 0.2)) {
                 currentNode.position.x = node.position.x
                 currentNode.position.y = node.position.y + yOffset
             }
-            yOffset += 60
+            yOffset += 80
             current = currentNode.next
         }
         
@@ -391,13 +460,23 @@ struct ChainNodeView: View {
         // 断开前驱连接
         breakFromPreviousNode()
         
-        // 移动当前节点
+        // 移动当前节点（现在成为新的链头）
         node.position.x += offset.width
         node.position.y += offset.height
         
-        // 移动子链条
+        // 移动子链条，保持垂直排列
         if node.next != nil {
-            moveSubChainNodes()
+            var current = node.next
+            var yOffset: CGFloat = 80
+            
+            while let currentNode = current {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    currentNode.position.x = node.position.x
+                    currentNode.position.y = node.position.y + yOffset
+                }
+                yOffset += 80
+                current = currentNode.next
+            }
         }
         
         // 检查自动连接
@@ -419,20 +498,6 @@ struct ChainNodeView: View {
                 rearrangeChain(from: originalHead)
                 break
             }
-        }
-    }
-    
-    private func moveSubChainNodes() {
-        var current = node.next
-        var yOffset: CGFloat = 60
-        
-        while let currentNode = current {
-            withAnimation(.easeOut(duration: 0.2)) {
-                currentNode.position.x = node.position.x
-                currentNode.position.y = node.position.y + yOffset
-            }
-            yOffset += 60
-            current = currentNode.next
         }
     }
 }

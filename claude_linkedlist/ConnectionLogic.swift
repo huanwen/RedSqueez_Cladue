@@ -85,7 +85,7 @@ class ConnectionLogic {
                     // 情况2: 目标是链条尾部节点
                     performConnectionToTailNode(node, with: targetNode, manager: manager)
                 } else if targetIsHead && targetHasNext {
-                    // 情况3: 目标是链条头部 - 修复：根据位置决定是成为新链头还是插入
+                    // 情况3: 目标是链条头部 - 需要根据位置决定连接方式
                     performConnectionToChainHead(node, with: targetNode, manager: manager)
                 } else {
                     // 情况4: 目标是链条中间节点
@@ -100,8 +100,17 @@ class ConnectionLogic {
     
     // MARK: - 私有连接操作方法
     private func performSimpleConnection(_ node: ChainNode, with targetNode: ChainNode, manager: ChainManager) {
-        if targetNode.next == nil && !hasIncomingConnection(for: targetNode, manager: manager) {
+        // 首先检查目标节点的真实状态
+        let targetIsHead = !hasIncomingConnection(for: targetNode, manager: manager)
+        let targetHasNext = targetNode.next != nil
+        
+        if targetIsHead && targetHasNext {
+            // 目标是链条头部 - 使用专门的连接逻辑
+            performConnectionToChainHead(node, with: targetNode, manager: manager)
+        } else if targetIsHead && !targetHasNext {
+            // 目标是独立节点
             if node.position.y < targetNode.position.y {
+                // 拖拽节点在上方 - 拖拽节点成为链头
                 if let currentTail = findChainTail(from: node, manager: manager) {
                     currentTail.next = targetNode
                 } else {
@@ -109,9 +118,16 @@ class ConnectionLogic {
                 }
                 rearrangeChain(from: node)
             } else {
+                // 拖拽节点在下方 - 目标节点成为链头
                 targetNode.next = node
                 rearrangeChain(from: targetNode)
             }
+        } else if !targetIsHead && !targetHasNext {
+            // 目标是链条尾部
+            performConnectionToTailNode(node, with: targetNode, manager: manager)
+        } else {
+            // 目标是链条中间节点
+            performNodeInsertion(node, at: targetNode, manager: manager)
         }
     }
     
