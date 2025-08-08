@@ -2,10 +2,18 @@
 //  ScratchShapes.swift
 //  LinkedListApp
 //
-//  Scratch风格拼图块形状组件
+//  Scratch风格拼图块形状组件 - 梯形凹凸槽设计
 //
 
 import SwiftUI
+
+// MARK: - 共享槽位参数
+struct SharedSlot {
+    static let tabWidth: CGFloat = 24
+    static let tabHeight: CGFloat = 6
+    static let slotStartRatio: CGFloat = 0.5  // 居中位置
+    static let tabInset: CGFloat = 4  // 梯形的斜边距离
+}
 
 // MARK: - Scratch风格拼图块形状
 struct ScratchBlockShape: View {
@@ -44,7 +52,7 @@ struct ScratchBlockShape: View {
     }
 }
 
-// MARK: - Scratch拼图块路径
+// MARK: - Scratch拼图块路径 - 梯形设计
 struct ScratchPath: Shape {
     let hasTopSlot: Bool
     let hasBottomTab: Bool
@@ -55,28 +63,23 @@ struct ScratchPath: Shape {
         let width = rect.width
         let height = rect.height
         let cornerRadius: CGFloat = 8
-        let slotWidth: CGFloat = 20
-        let slotHeight: CGFloat = 6
-        let tabWidth: CGFloat = 20
-        let tabHeight: CGFloat = 6
+        let tabWidth = SharedSlot.tabWidth
+        let tabHeight = SharedSlot.tabHeight
+        let tabInset = SharedSlot.tabInset
         
-        // 开始绘制路径
+        // 计算凹凸槽的起始位置（居中）
+        let slotStartX = (width - tabWidth) / 2
+        
+        // 开始绘制路径 - 从左上角开始
         path.move(to: CGPoint(x: cornerRadius, y: 0))
         
         // 顶部边缘
         if hasTopSlot {
-            // 绘制顶部凹槽
-            let slotStart = (width - slotWidth) / 2
-            let slotEnd = slotStart + slotWidth
-            
-            path.addLine(to: CGPoint(x: slotStart, y: 0))
-            path.addLine(to: CGPoint(x: slotStart, y: slotHeight))
-            path.addArc(center: CGPoint(x: slotStart + slotWidth/2, y: slotHeight),
-                       radius: slotWidth/2,
-                       startAngle: .degrees(180),
-                       endAngle: .degrees(0),
-                       clockwise: true)
-            path.addLine(to: CGPoint(x: slotEnd, y: 0))
+            // 绘制顶部梯形凹槽
+            path.addLine(to: CGPoint(x: slotStartX, y: 0))
+            path.addLine(to: CGPoint(x: slotStartX + tabInset, y: tabHeight))
+            path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: tabHeight))
+            path.addLine(to: CGPoint(x: slotStartX + tabWidth, y: 0))
         }
         
         // 顶部右角
@@ -88,41 +91,60 @@ struct ScratchPath: Shape {
                    clockwise: false)
         
         // 右边缘
-        path.addLine(to: CGPoint(x: width, y: height - cornerRadius))
+        if hasBottomTab {
+            path.addLine(to: CGPoint(x: width, y: height - tabHeight - cornerRadius))
+        } else {
+            path.addLine(to: CGPoint(x: width, y: height - cornerRadius))
+        }
         
         // 底部右角
-        path.addArc(center: CGPoint(x: width - cornerRadius, y: height - cornerRadius),
-                   radius: cornerRadius,
-                   startAngle: .degrees(0),
-                   endAngle: .degrees(90),
-                   clockwise: false)
+        if hasBottomTab {
+            path.addLine(to: CGPoint(x: width, y: height - tabHeight - cornerRadius))
+            path.addArc(center: CGPoint(x: width - cornerRadius, y: height - tabHeight - cornerRadius),
+                       radius: cornerRadius,
+                       startAngle: .degrees(0),
+                       endAngle: .degrees(90),
+                       clockwise: false)
+        } else {
+            path.addArc(center: CGPoint(x: width - cornerRadius, y: height - cornerRadius),
+                       radius: cornerRadius,
+                       startAngle: .degrees(0),
+                       endAngle: .degrees(90),
+                       clockwise: false)
+        }
         
         // 底部边缘
         if hasBottomTab {
-            // 绘制底部凸起
-            let tabStart = (width - tabWidth) / 2
-            let tabEnd = tabStart + tabWidth
-            
-            path.addLine(to: CGPoint(x: tabEnd, y: height))
-            path.addLine(to: CGPoint(x: tabEnd, y: height + tabHeight))
-            path.addArc(center: CGPoint(x: tabEnd - tabWidth/2, y: height + tabHeight),
-                       radius: tabWidth/2,
-                       startAngle: .degrees(0),
-                       endAngle: .degrees(180),
-                       clockwise: true)
-            path.addLine(to: CGPoint(x: tabStart, y: height))
+            // 绘制底部梯形凸起
+            path.addLine(to: CGPoint(x: slotStartX + tabWidth, y: height - tabHeight))
+            path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: height))
+            path.addLine(to: CGPoint(x: slotStartX + tabInset, y: height))
+            path.addLine(to: CGPoint(x: slotStartX, y: height - tabHeight))
         }
         
         // 底部左角
-        path.addLine(to: CGPoint(x: cornerRadius, y: height))
-        path.addArc(center: CGPoint(x: cornerRadius, y: height - cornerRadius),
-                   radius: cornerRadius,
-                   startAngle: .degrees(90),
-                   endAngle: .degrees(180),
-                   clockwise: false)
+        if hasBottomTab {
+            path.addLine(to: CGPoint(x: cornerRadius, y: height - tabHeight))
+            path.addArc(center: CGPoint(x: cornerRadius, y: height - tabHeight - cornerRadius),
+                       radius: cornerRadius,
+                       startAngle: .degrees(90),
+                       endAngle: .degrees(180),
+                       clockwise: false)
+        } else {
+            path.addLine(to: CGPoint(x: cornerRadius, y: height))
+            path.addArc(center: CGPoint(x: cornerRadius, y: height - cornerRadius),
+                       radius: cornerRadius,
+                       startAngle: .degrees(90),
+                       endAngle: .degrees(180),
+                       clockwise: false)
+        }
         
         // 左边缘
-        path.addLine(to: CGPoint(x: 0, y: cornerRadius))
+        if hasBottomTab {
+            path.addLine(to: CGPoint(x: 0, y: tabHeight + cornerRadius))
+        } else {
+            path.addLine(to: CGPoint(x: 0, y: cornerRadius))
+        }
         
         // 顶部左角
         path.addArc(center: CGPoint(x: cornerRadius, y: cornerRadius),
@@ -136,49 +158,43 @@ struct ScratchPath: Shape {
     }
 }
 
-// MARK: - 顶部凹槽高亮形状
+// MARK: - 顶部凹槽高亮形状 - 梯形
 struct TopSlotHighlight: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let width = rect.width
-        let slotWidth: CGFloat = 20
-        let slotHeight: CGFloat = 6
-        let slotStart = (width - slotWidth) / 2
+        let tabWidth = SharedSlot.tabWidth
+        let tabHeight = SharedSlot.tabHeight
+        let tabInset = SharedSlot.tabInset
+        let slotStartX = (width - tabWidth) / 2
         
-        // 绘制凹槽高亮区域
-        path.move(to: CGPoint(x: slotStart, y: 0))
-        path.addLine(to: CGPoint(x: slotStart, y: slotHeight))
-        path.addArc(center: CGPoint(x: slotStart + slotWidth/2, y: slotHeight),
-                   radius: slotWidth/2,
-                   startAngle: .degrees(180),
-                   endAngle: .degrees(0),
-                   clockwise: true)
-        path.addLine(to: CGPoint(x: slotStart + slotWidth, y: 0))
+        // 绘制梯形凹槽高亮区域
+        path.move(to: CGPoint(x: slotStartX, y: 0))
+        path.addLine(to: CGPoint(x: slotStartX + tabInset, y: tabHeight))
+        path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: tabHeight))
+        path.addLine(to: CGPoint(x: slotStartX + tabWidth, y: 0))
         path.closeSubpath()
         
         return path
     }
 }
 
-// MARK: - 底部凸起高亮形状
+// MARK: - 底部凸起高亮形状 - 梯形
 struct BottomTabHighlight: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let width = rect.width
         let height = rect.height
-        let tabWidth: CGFloat = 20
-        let tabHeight: CGFloat = 6
-        let tabStart = (width - tabWidth) / 2
+        let tabWidth = SharedSlot.tabWidth
+        let tabHeight = SharedSlot.tabHeight
+        let tabInset = SharedSlot.tabInset
+        let slotStartX = (width - tabWidth) / 2
         
-        // 绘制凸起高亮区域
-        path.move(to: CGPoint(x: tabStart, y: height))
-        path.addLine(to: CGPoint(x: tabStart, y: height + tabHeight))
-        path.addArc(center: CGPoint(x: tabStart + tabWidth/2, y: height + tabHeight),
-                   radius: tabWidth/2,
-                   startAngle: .degrees(180),
-                   endAngle: .degrees(0),
-                   clockwise: false)
-        path.addLine(to: CGPoint(x: tabStart + tabWidth, y: height))
+        // 绘制梯形凸起高亮区域
+        path.move(to: CGPoint(x: slotStartX, y: height - tabHeight))
+        path.addLine(to: CGPoint(x: slotStartX + tabInset, y: height))
+        path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: height))
+        path.addLine(to: CGPoint(x: slotStartX + tabWidth, y: height - tabHeight))
         path.closeSubpath()
         
         return path

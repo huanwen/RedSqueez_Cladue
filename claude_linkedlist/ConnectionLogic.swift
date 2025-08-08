@@ -43,7 +43,7 @@ class ConnectionLogic {
                     performHeadToTailNodeConnection(headNode, with: targetNode, manager: manager)
                 } else if targetIsHead && targetHasNext {
                     // 情况3: 目标是链条头部
-                    performHeadToChainTailConnection(headNode, with: targetNode, manager: manager)
+                    performHeadToChainHeadConnection(headNode, with: targetNode, manager: manager)
                 } else {
                     // 情况4: 目标是链条中间节点
                     performChainInsertion(headNode, at: targetNode, manager: manager)
@@ -85,8 +85,8 @@ class ConnectionLogic {
                     // 情况2: 目标是链条尾部节点
                     performConnectionToTailNode(node, with: targetNode, manager: manager)
                 } else if targetIsHead && targetHasNext {
-                    // 情况3: 目标是链条头部
-                    performConnectionToChainTail(node, with: targetNode, manager: manager)
+                    // 情况3: 目标是链条头部 - 修复：根据位置决定是成为新链头还是插入
+                    performConnectionToChainHead(node, with: targetNode, manager: manager)
                 } else {
                     // 情况4: 目标是链条中间节点
                     performNodeInsertion(node, at: targetNode, manager: manager)
@@ -121,12 +121,30 @@ class ConnectionLogic {
         rearrangeChain(from: chainHead)
     }
     
-    private func performConnectionToChainTail(_ node: ChainNode, with targetNode: ChainNode, manager: ChainManager) {
-        if let chainTail = findChainTail(from: targetNode, manager: manager) {
-            if chainTail.next == nil {
-                chainTail.next = node
-                rearrangeChain(from: targetNode)
+    // 修复：连接到链条头部 - 根据位置决定是成为新链头还是插入
+    private func performConnectionToChainHead(_ node: ChainNode, with targetNode: ChainNode, manager: ChainManager) {
+        // 检查拖拽节点的位置是否在目标链条头部上方
+        if node.position.y < targetNode.position.y {
+            // 单个节点在上方 - 成为新的链头
+            if let currentChainTail = findChainTail(from: node, manager: manager) {
+                currentChainTail.next = targetNode
+            } else {
+                node.next = targetNode
             }
+            rearrangeChain(from: node)  // 从新的链头开始重排
+        } else {
+            // 单个节点在下方 - 插入到链条头部下面
+            let originalNext = targetNode.next
+            targetNode.next = node
+            
+            // 如果当前拖拽的节点有子链，将子链连接到原来的next
+            if let currentChainTail = findChainTail(from: node, manager: manager) {
+                currentChainTail.next = originalNext
+            } else {
+                node.next = originalNext
+            }
+            
+            rearrangeChain(from: targetNode)  // 从原链头开始重排
         }
     }
     
@@ -157,7 +175,9 @@ class ConnectionLogic {
         rearrangeChain(from: targetChainHead)
     }
     
-    private func performHeadToChainTailConnection(_ headNode: ChainNode, with targetNode: ChainNode, manager: ChainManager) {
+    // 链条头部连接到另一个链条头部 - 保持原有逻辑
+    private func performHeadToChainHeadConnection(_ headNode: ChainNode, with targetNode: ChainNode, manager: ChainManager) {
+        // 将当前链条连接到目标链条尾部
         if let targetChainTail = findChainTail(from: targetNode, manager: manager) {
             if targetChainTail.next == nil {
                 targetChainTail.next = headNode

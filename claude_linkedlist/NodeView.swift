@@ -2,7 +2,7 @@
 //  NodeView.swift
 //  LinkedListApp
 //
-//  简化的链条节点视图
+//  简化的链条节点视图 - 添加长按删除功能
 //
 
 import SwiftUI
@@ -13,8 +13,10 @@ struct ChainNodeView: View {
     @State private var dragOffset = CGSize.zero
     @State private var isChainHead = false
     @State private var isDragging = false
-    @State private var showingInsertMenu = false
+
     @State private var nodeIndex: Int = -1
+    @State private var showingDeleteButton = false
+    @State private var longPressTimer: Timer?
     
     // 连接逻辑处理器
     private let connectionLogic = ConnectionLogic()
@@ -47,6 +49,27 @@ struct ChainNodeView: View {
                     .foregroundColor(.white)
                     .opacity(0.9)
             }
+            
+            // 删除按钮 - 长按时显示
+            if showingDeleteButton {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            deleteNodeWithAnimation()
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                    Spacer()
+                }
+                .frame(width: 120, height: 66)
+            }
         }
         .position(CGPoint(x: node.position.x + dragOffset.width,
                          y: node.position.y + dragOffset.height))
@@ -60,16 +83,26 @@ struct ChainNodeView: View {
             updateNodeInfo()
         }
         .onTapGesture {
-            showingInsertMenu = true
+            // 如果正在显示删除按钮，先隐藏它
+            if showingDeleteButton {
+                hideDeleteButton()
+            }
         }
-        .sheet(isPresented: $showingInsertMenu) {
-            InsertMenuView(node: node, manager: manager, nodeIndex: nodeIndex)
+        .onLongPressGesture(minimumDuration: 0.6) {
+            // 长按显示删除按钮
+            showDeleteButton()
         }
+
         .gesture(
             DragGesture()
                 .onChanged { value in
                     isDragging = true
                     dragOffset = value.translation
+                    
+                    // 拖拽时隐藏删除按钮
+                    if showingDeleteButton {
+                        hideDeleteButton()
+                    }
                 }
                 .onEnded { value in
                     isDragging = false
@@ -86,6 +119,60 @@ struct ChainNodeView: View {
                     updateNodeInfo()
                 }
         )
+    }
+    
+    // MARK: - 删除按钮相关方法
+    private func showDeleteButton() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            showingDeleteButton = true
+        }
+        
+        // 3秒后自动隐藏删除按钮
+        longPressTimer?.invalidate()
+        longPressTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+            hideDeleteButton()
+        }
+    }
+    
+    private func hideDeleteButton() {
+        withAnimation(.easeOut(duration: 0.2)) {
+            showingDeleteButton = false
+        }
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+    }
+    
+    private func deleteNodeWithAnimation() {
+        // 先隐藏删除按钮
+        hideDeleteButton()
+        
+        // 添加删除动画
+        withAnimation(.easeInOut(duration: 0.3)) {
+            // 缩放效果
+            node.position = CGPoint(x: node.position.x, y: node.position.y - 10)
+        }
+        
+        // 延迟删除，让动画播放完成
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            deleteCurrentNode()
+        }
+    }
+    
+    private func deleteCurrentNode() {
+        // 断开前驱连接
+        for prevNode in manager.nodes {
+            if prevNode.next?.id == node.id {
+                prevNode.next = node.next
+                
+                // 重新排列原链条
+                let originalHead = getChainHead(of: prevNode)
+                rearrangeChain(from: originalHead)
+                break
+            }
+        }
+        
+        // 从管理器中移除节点
+        manager.nodes.removeAll { $0.id == node.id }
     }
     
     // MARK: - 节点信息更新
@@ -116,6 +203,30 @@ struct ChainNodeView: View {
             head = previous
         }
         return head
+    }
+    
+    private func getChainHead(of targetNode: ChainNode) -> ChainNode {
+        var head = targetNode
+        while let previous = manager.nodes.first(where: { $0.next?.id == head.id }) {
+            head = previous
+        }
+        return head
+    }
+    
+    private func rearrangeChain(from head: ChainNode) {
+        var current: ChainNode? = head
+        var yOffset: CGFloat = 0
+        
+        while let currentNode = current {
+            withAnimation(.easeOut(duration: 0.3)) {
+                currentNode.position = CGPoint(
+                    x: head.position.x,
+                    y: head.position.y + yOffset
+                )
+            }
+            yOffset += 60
+            current = currentNode.next
+        }
     }
     
     // MARK: - 视觉样式
@@ -222,145 +333,6 @@ struct ChainNodeView: View {
             withAnimation(.easeOut(duration: 0.2)) {
                 currentNode.position.x = node.position.x
                 currentNode.position.y = node.position.y + yOffset
-            }
-            yOffset += 60
-            current = currentNode.next
-        }
-    }
-    
-    // MARK: - 辅助方法
-    private func getChainHead(of node: ChainNode) -> ChainNode {
-        var head = node
-        while let previous = manager.nodes.first(where: { $0.next?.id == head.id }) {
-            head = previous
-        }
-        return head
-    }
-    
-    private func rearrangeChain(from head: ChainNode) {
-        var current: ChainNode? = head
-        var yOffset: CGFloat = 0
-        
-        while let currentNode = current {
-            withAnimation(.easeOut(duration: 0.3)) {
-                currentNode.position = CGPoint(
-                    x: head.position.x,
-                    y: head.position.y + yOffset
-                )
-            }
-            yOffset += 60
-            current = currentNode.next
-        }
-    }
-}
-
-// MARK: - 插入菜单视图
-struct InsertMenuView: View {
-    let node: ChainNode
-    @ObservedObject var manager: ChainManager
-    let nodeIndex: Int
-    @Environment(\.presentationMode) var presentationMode
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Text("节点操作")
-                    .font(.title)
-                    .bold()
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("节点信息:")
-                        .font(.headline)
-                    Text("完整UUID: \(node.id.uuidString)")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    if nodeIndex >= 0 {
-                        Text("链表位置: [\(nodeIndex)]")
-                            .font(.subheadline)
-                    } else {
-                        Text("独立节点（未连接）")
-                            .font(.subheadline)
-                    }
-                }
-                .padding()
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(8)
-                
-                VStack(spacing: 12) {
-                    Button("在此节点后插入新节点") {
-                        insertNewNode()
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-                    
-                    Button("删除此节点") {
-                        deleteCurrentNode()
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                    .padding()
-                    .background(Color.red)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-                    
-                    Button("取消") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                    .padding()
-                    .background(Color.gray)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-                }
-            }
-            .padding()
-            .navigationTitle("节点 [\(nodeIndex >= 0 ? String(nodeIndex) : "独立")]")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-    
-    private func insertNewNode() {
-        let insertPosition = CGPoint(
-            x: node.position.x + 20,
-            y: node.position.y + 60
-        )
-        let newNode = ChainNode(position: insertPosition)
-        
-        let originalNext = node.next
-        node.next = newNode
-        newNode.next = originalNext
-        
-        manager.nodes.append(newNode)
-        rearrangeChainFromHead()
-    }
-    
-    private func deleteCurrentNode() {
-        for managerNode in manager.nodes {
-            if managerNode.next?.id == node.id {
-                managerNode.next = node.next
-                break
-            }
-        }
-        
-        manager.nodes.removeAll { $0.id == node.id }
-    }
-    
-    private func rearrangeChainFromHead() {
-        var head = node
-        while let previous = manager.nodes.first(where: { $0.next?.id == head.id }) {
-            head = previous
-        }
-        
-        var current: ChainNode? = head
-        var yOffset: CGFloat = 0
-        
-        while let currentNode = current {
-            withAnimation(.easeOut(duration: 0.3)) {
-                currentNode.position = CGPoint(
-                    x: head.position.x,
-                    y: head.position.y + yOffset
-                )
             }
             yOffset += 60
             current = currentNode.next
