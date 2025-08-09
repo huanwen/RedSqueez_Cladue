@@ -7,11 +7,19 @@
 
 import SwiftUI
 
+// 槽类型枚举
+enum SlotType {
+    case topSlot    // 顶部凹槽
+    case bottomTab  // 底部凸起
+}
+
 // 链条管理器
 class ChainManager: ObservableObject {
     @Published var nodes: [ChainNode] = []
     @Published var chains: [[ChainNode]] = [] // 存储多个独立的链条
     @Published var defaultConfig: BlockConfig = BlockConfig.availableBlocks[0]
+    @Published var snapTargetNodeId: UUID? = nil // 当前的吸附目标节点
+    @Published var snapTargetSlot: SlotType? = nil // 目标槽类型
     
     private let snapDistance: CGFloat = 25.0
     private let nodeSpacing: CGFloat = 50.0 // 垂直间距

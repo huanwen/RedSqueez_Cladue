@@ -9,8 +9,8 @@ import SwiftUI
 
 // MARK: - 共享槽位参数
 struct SharedSlot {
-    static let tabWidth: CGFloat = 24
-    static let tabHeight: CGFloat = 6
+    static let tabWidth: CGFloat = 38
+    static let tabHeight: CGFloat = 8
     static let slotStartRatio: CGFloat = 0.5  // 居中位置
     static let tabInset: CGFloat = 4  // 梯形的斜边距离
 }
@@ -35,18 +35,20 @@ struct ScratchBlockShape: View {
                         .stroke(strokeColor, lineWidth: strokeWidth)
                 )
             
-            // 顶部凹槽高亮
+            // 顶部凹槽高亮 - 增强效果
             if topSlotHighlight {
                 TopSlotHighlight()
-                    .fill(Color.yellow.opacity(0.6))
-                    .animation(.easeInOut(duration: 0.3), value: topSlotHighlight)
+                    .fill(Color.yellow.opacity(0.9))
+                    .shadow(color: .yellow, radius: 4)
+                    .animation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true), value: topSlotHighlight)
             }
             
-            // 底部凸起高亮
+            // 底部凸起高亮 - 增强效果
             if bottomTabHighlight {
                 BottomTabHighlight()
-                    .fill(Color.yellow.opacity(0.6))
-                    .animation(.easeInOut(duration: 0.3), value: bottomTabHighlight)
+                    .fill(Color.yellow.opacity(0.9))
+                    .shadow(color: .yellow, radius: 4)
+                    .animation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true), value: bottomTabHighlight)
             }
         }
     }
