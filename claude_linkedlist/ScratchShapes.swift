@@ -2,7 +2,7 @@
 //  ScratchShapes.swift
 //  LinkedListApp
 //
-//  Scratch风格拼图块形状组件 - 梯形凹凸槽设计
+//  Scratch风格拼图块形状组件 - 固定凹凸槽位置，左对齐
 //
 
 import SwiftUI
@@ -11,7 +11,8 @@ import SwiftUI
 struct SharedSlot {
     static let tabWidth: CGFloat = 38
     static let tabHeight: CGFloat = 8
-    static let slotStartRatio: CGFloat = 0.5  // 居中位置
+    // 🔧 FIX: 固定凹凸槽距离左边的距离，而不是居中
+    static let slotLeftOffset: CGFloat = 20  // 凹凸槽距离左边的固定距离
     static let tabInset: CGFloat = 4  // 梯形的斜边距离
 }
 
@@ -38,23 +39,23 @@ struct ScratchBlockShape: View {
             // 顶部凹槽高亮 - 增强效果
             if topSlotHighlight {
                 TopSlotHighlight()
-                    .fill(Color.yellow.opacity(0.9))
-                    .shadow(color: .yellow, radius: 4)
+                    .fill(Color.green.opacity(0.9))
+                    .shadow(color: .green, radius: 4)
                     .animation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true), value: topSlotHighlight)
             }
             
             // 底部凸起高亮 - 增强效果
             if bottomTabHighlight {
                 BottomTabHighlight()
-                    .fill(Color.yellow.opacity(0.9))
-                    .shadow(color: .yellow, radius: 4)
+                    .fill(Color.green.opacity(0.9))
+                    .shadow(color: .green, radius: 4)
                     .animation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true), value: bottomTabHighlight)
             }
         }
     }
 }
 
-// MARK: - Scratch拼图块路径 - 梯形设计
+// MARK: - Scratch拼图块路径 - 固定凹凸槽位置
 struct ScratchPath: Shape {
     let hasTopSlot: Bool
     let hasBottomTab: Bool
@@ -69,15 +70,15 @@ struct ScratchPath: Shape {
         let tabHeight = SharedSlot.tabHeight
         let tabInset = SharedSlot.tabInset
         
-        // 计算凹凸槽的起始位置（居中）
-        let slotStartX = (width - tabWidth) / 2
+        // 🔧 FIX: 使用固定的左边距离，而不是居中计算
+        let slotStartX = SharedSlot.slotLeftOffset
         
         // 开始绘制路径 - 从左上角开始
         path.move(to: CGPoint(x: cornerRadius, y: 0))
         
         // 顶部边缘
         if hasTopSlot {
-            // 绘制顶部梯形凹槽
+            // 绘制顶部梯形凹槽 - 固定位置
             path.addLine(to: CGPoint(x: slotStartX, y: 0))
             path.addLine(to: CGPoint(x: slotStartX + tabInset, y: tabHeight))
             path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: tabHeight))
@@ -117,7 +118,7 @@ struct ScratchPath: Shape {
         
         // 底部边缘
         if hasBottomTab {
-            // 绘制底部梯形凸起
+            // 绘制底部梯形凸起 - 固定位置
             path.addLine(to: CGPoint(x: slotStartX + tabWidth, y: height - tabHeight))
             path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: height))
             path.addLine(to: CGPoint(x: slotStartX + tabInset, y: height))
@@ -160,17 +161,17 @@ struct ScratchPath: Shape {
     }
 }
 
-// MARK: - 顶部凹槽高亮形状 - 梯形
+// MARK: - 顶部凹槽高亮形状 - 固定位置
 struct TopSlotHighlight: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let width = rect.width
         let tabWidth = SharedSlot.tabWidth
         let tabHeight = SharedSlot.tabHeight
         let tabInset = SharedSlot.tabInset
-        let slotStartX = (width - tabWidth) / 2
+        // 🔧 FIX: 使用固定的左边距离
+        let slotStartX = SharedSlot.slotLeftOffset
         
-        // 绘制梯形凹槽高亮区域
+        // 绘制梯形凹槽高亮区域 - 固定位置
         path.move(to: CGPoint(x: slotStartX, y: 0))
         path.addLine(to: CGPoint(x: slotStartX + tabInset, y: tabHeight))
         path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: tabHeight))
@@ -181,18 +182,18 @@ struct TopSlotHighlight: Shape {
     }
 }
 
-// MARK: - 底部凸起高亮形状 - 梯形
+// MARK: - 底部凸起高亮形状 - 固定位置
 struct BottomTabHighlight: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let width = rect.width
         let height = rect.height
         let tabWidth = SharedSlot.tabWidth
         let tabHeight = SharedSlot.tabHeight
         let tabInset = SharedSlot.tabInset
-        let slotStartX = (width - tabWidth) / 2
+        // 🔧 FIX: 使用固定的左边距离
+        let slotStartX = SharedSlot.slotLeftOffset
         
-        // 绘制梯形凸起高亮区域
+        // 绘制梯形凸起高亮区域 - 固定位置
         path.move(to: CGPoint(x: slotStartX, y: height - tabHeight))
         path.addLine(to: CGPoint(x: slotStartX + tabInset, y: height))
         path.addLine(to: CGPoint(x: slotStartX + tabWidth - tabInset, y: height))
